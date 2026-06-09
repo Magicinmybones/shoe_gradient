@@ -342,17 +342,46 @@
       state.layers.forEach((L) => { L.wrap.style.animationPlayState = 'paused'; });
       state.layers.forEach((L) => { L.tilt.style.transform = ''; });
 
-      // crossfade background to the incoming hero's gradient
+      // crossfade background to the incoming hero's bg/gradient
       const back = state.bgBack;
+      const front = state.bgFront;
       setBg(back, state.products[toIndex]);
       back.style.opacity = 0;
-      const bgAnim = back.animate(
-        [{ opacity: 0 }, { opacity: 1 }],
-        { duration: 720, easing: EASE.inOut, fill: 'forwards' }
-      );
 
-      const anims = [bgAnim];
-      let maxDur = 720;
+      // The bg-image version (no per-product gradient) gets a richer push:
+      // the incoming photo zooms + slides in from the travel direction while
+      // the outgoing one drifts the other way for a parallax depth feel.
+      // The gradient version keeps its clean flat crossfade.
+      const isImageBg = state.products.every((p) => !p.gradient);
+      const bgAnims = [];
+      let bgDur;
+      if (isImageBg) {
+        bgDur = 1000;
+        const slide = 9 * dir; // % within the -8% overscan, direction-aware
+        bgAnims.push(back.animate(
+          [
+            { opacity: 0, transform: `scale(1.18) translateX(${slide}%)`, filter: 'blur(6px)' },
+            { opacity: 1, transform: 'scale(1) translateX(0)', filter: 'blur(0px)' },
+          ],
+          { duration: bgDur, easing: EASE.soft, fill: 'forwards' }
+        ));
+        bgAnims.push(front.animate(
+          [
+            { transform: 'scale(1) translateX(0)' },
+            { transform: `scale(1.07) translateX(${-slide * 0.55}%)` },
+          ],
+          { duration: bgDur, easing: EASE.soft, fill: 'forwards' }
+        ));
+      } else {
+        bgDur = 720;
+        bgAnims.push(back.animate(
+          [{ opacity: 0 }, { opacity: 1 }],
+          { duration: bgDur, easing: EASE.inOut, fill: 'forwards' }
+        ));
+      }
+
+      const anims = bgAnims.slice();
+      let maxDur = bgDur;
 
       state.layers.forEach((L, j) => {
         const fromSlot = L.slot;
@@ -385,7 +414,10 @@
         anims.forEach((x) => { try { x.cancel(); } catch (e) {} });
 
         // settle the crossfade: the faded-in back becomes the new front,
-        // the old front becomes the hidden back
+        // the old front becomes the hidden back. Clear any push transform/blur
+        // left on either layer so the hidden one resets cleanly for next swap.
+        back.style.transform = ''; back.style.filter = '';
+        front.style.transform = ''; front.style.filter = '';
         back.style.opacity = 1;
         const oldFront = state.bgFront;
         state.bgFront = back; state.bgBack = oldFront;
