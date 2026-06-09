@@ -11,8 +11,9 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "shoeScale": 70
 }/*EDITMODE-END*/;
 
-// Always use the gradient product set (kept true so renaming the HTML file — e.g. to index.html — doesn't change which version loads).
-const useGradient = true;
+// Path-based version select: visiting "/img" loads the bg-image product set;
+// every other path (incl. "/" / index.html) loads the gradient version.
+const useGradient = !(typeof location !== 'undefined' && /\/img\/?$/.test(location.pathname.toLowerCase()));
 
 const PRODUCTS_ORIGINAL = [
   {
