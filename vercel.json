@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/",
-      "destination": "/Sneaker%20Studio%202D%20gradient.html"
+      "destination": "/index.html"
     }
   ]
 }

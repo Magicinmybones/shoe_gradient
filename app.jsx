@@ -11,7 +11,8 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "shoeScale": 70
 }/*EDITMODE-END*/;
 
-const useGradient = typeof location !== 'undefined' && location.pathname.toLowerCase().includes('gradient');
+// Always use the gradient product set (kept true so renaming the HTML file — e.g. to index.html — doesn't change which version loads).
+const useGradient = true;
 
 const PRODUCTS_ORIGINAL = [
   {
