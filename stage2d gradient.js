@@ -373,10 +373,10 @@
           { duration: bgDur, easing: EASE.soft, fill: 'forwards' }
         ));
       } else {
-        bgDur = 720;
+        bgDur = 1100;
         bgAnims.push(back.animate(
           [{ opacity: 0 }, { opacity: 1 }],
-          { duration: bgDur, easing: EASE.inOut, fill: 'forwards' }
+          { duration: bgDur, easing: EASE.soft, fill: 'forwards' }
         ));
       }
 
