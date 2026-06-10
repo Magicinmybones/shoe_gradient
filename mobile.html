@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>STRYDE — Mobile</title>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#ffffff;
+    --ink-soft:rgba(255,255,255,.72);
+    --ink-faint:rgba(255,255,255,.42);
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; width:100%; overflow:hidden; background:#0a0805; }
+  body{
+    font-family:'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  #root{ height:100%; width:100%; }
+
+  /* ===== viewport letterboxes the fixed 940×1646 phone canvas ===== */
+  .viewport{
+    position:fixed; inset:0;
+    background:#0a0805;
+    overflow:hidden;
+  }
+  .device{
+    position:absolute; left:50%; top:50%;
+    width:941px; height:1672px;
+    transform-origin:center center;
+    transform:translate(-50%,-50%) scale(0.45);
+    overflow:hidden;
+    background:#1c1404;
+  }
+
+  /* ---- background gradient layers (cross-fade) ---- */
+  .bg{
+    position:absolute; inset:0; z-index:0;
+    background-size:cover; background-position:center;
+    transition:opacity .55s ease;
+  }
+
+  /* faint nike swoosh watermark behind the shoe */
+  .watermark{
+    position:absolute; z-index:1;
+    left:54%; top:38%; transform:translate(-50%,-50%);
+    width:760px; opacity:.10;
+    filter:brightness(0) invert(1);
+    pointer-events:none; user-select:none;
+  }
+
+  /* ---- shoe stage ---- */
+  .shoe{
+    /* NOTE: positioning lives on the variants, not here. The main shoe must stay
+       in normal flow so its flex wrappers can size to it and center it; only the
+       thumbnails are absolutely placed. Forcing position here collapses the
+       flex wrappers to width:0 and the shoe drifts off-center. */
+    transform-origin:center center;
+    -webkit-user-drag:none; user-select:none;
+    will-change:transform, opacity;
+  }
+  /* ---- main shoe stage: each layer owns exactly ONE transform concern ----
+     .mainstage = POSITION only (static). Flexbox centers the shoe, so centering
+       never depends on the image's measured size — it cannot drift off-center.
+     .floatwrap = idle float (translateY).  .slidewrap = entrance slide.
+     img.shoe.main = static rotation. No two animations touch the same element. */
+  .mainstage{
+    position:absolute; z-index:6;
+    left:0; right:0; top:38%;
+    height:560px; transform:translateY(-50%);
+    display:flex; align-items:center; justify-content:center;
+    pointer-events:none;
+  }
+  .floatwrap{ animation:float 6.5s ease-in-out infinite; will-change:transform; }
+  @keyframes float{
+    0%,100%{ transform:translateY(-10px); }
+    50%    { transform:translateY(12px); }
+  }
+  /* Entrance is a one-shot keyframe with fill-mode BACKWARDS: it plays
+     offset→center once, then REVERTS to the element's base style. The base style
+     is the centered resting state, so the shoe can never get "stuck" off-center
+     — there is no held end-frame and no JS flip to misfire. Keyed by `token` in
+     React, so each swap remounts and replays. The initial mount gets no class,
+     so the shoe is centered & visible immediately (robust under any timing). */
+  .slidewrap{ will-change:transform, opacity; }
+  .slidewrap.from-right{ animation:slideInR .52s cubic-bezier(.2,.85,.3,1) backwards; }
+  .slidewrap.from-left { animation:slideInL .52s cubic-bezier(.2,.85,.3,1) backwards; }
+  @keyframes slideInR{
+    from{ opacity:0; transform:translateX(135px) scale(.88); }
+    to  { opacity:1; transform:translateX(0) scale(1); }
+  }
+  @keyframes slideInL{
+    from{ opacity:0; transform:translateX(-135px) scale(.88); }
+    to  { opacity:1; transform:translateX(0) scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce){ .slidewrap{ animation:none !important; } }
+  .shoe.main{
+    display:block; position:relative; width:740px;
+    transform:rotate(-8deg);
+    filter:drop-shadow(0 38px 46px rgba(0,0,0,.45));
+  }
+  .shoe.thumb{
+    position:absolute; z-index:5;
+    width:268px; opacity:.96; cursor:pointer;
+    filter:drop-shadow(0 22px 26px rgba(0,0,0,.5));
+    transition:transform .45s cubic-bezier(.2,.85,.3,1), opacity .45s ease;
+  }
+  .shoe.thumb:active{ filter:drop-shadow(0 14px 18px rgba(0,0,0,.5)); }
+  .shoe.thumb.right{ left:81%; top:20.5%; transform:translate(-50%,-50%) rotate(-6deg); }
+  .shoe.thumb.left { left:18%; top:57%; transform:translate(-50%,-50%) rotate(-6deg); }
+  .thumb-fade{ animation:thumbIn .5s ease both; }
+  @keyframes thumbIn{ from{ opacity:0; } to{ opacity:.96; } }
+
+  /* legibility scrim */
+  .scrim{
+    position:absolute; inset:0; z-index:7; pointer-events:none;
+    background:
+      linear-gradient(0deg, rgba(8,6,2,.62) 0%, rgba(8,6,2,0) 26%),
+      radial-gradient(120% 120% at 50% 42%, transparent 60%, rgba(8,6,2,.4) 100%);
+  }
+
+  /* ================= TOP BAR ================= */
+  .topbar{
+    position:absolute; z-index:20; top:0; left:0; right:0;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:52px 56px 0;
+  }
+  .logo img{ height:50px; filter:brightness(0) invert(1); display:block; }
+  .actions{ display:flex; align-items:center; gap:22px; }
+  .iconbtn{
+    width:78px; height:78px; border-radius:50%;
+    display:grid; place-items:center; cursor:pointer; color:#fff;
+    background:rgba(0,0,0,.30); border:1.5px solid rgba(255,255,255,.14);
+    padding:0; outline:none; transition:.2s;
+  }
+  .iconbtn:active{ transform:scale(.94); }
+  .iconbtn.cart{ background:#fff; border-color:transparent; color:#1c1c1c; }
+  .iconbtn svg{ width:34px; height:34px; }
+
+  /* ================= NAV PILLS ================= */
+  .navwrap{
+    position:absolute; z-index:20; top:162px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:4px;
+    background:rgba(0,0,0,.18); padding:9px; border-radius:999px;
+    backdrop-filter:blur(4px);
+  }
+  .pill{
+    border:0; background:transparent; cursor:pointer;
+    color:var(--ink-soft); font-family:inherit; font-weight:600;
+    font-size:30px; padding:17px 30px; border-radius:999px;
+    transition:.22s; white-space:nowrap;
+  }
+  .pill.active{ background:#fff; color:#1a1a1f; }
+
+  /* ================= HERO COPY (left) ================= */
+  .hero{
+    position:absolute; z-index:15; left:56px; top:1012px;
+    width:470px;
+  }
+  .headline{
+    font-weight:700; line-height:1.04; letter-spacing:-.012em;
+    font-size:66px; color:#fff;
+  }
+  .subcopy{
+    margin-top:30px; color:var(--ink-soft);
+    font-size:27px; font-weight:400; line-height:1.46;
+    max-width:420px; text-wrap:pretty;
+  }
+
+  /* ================= PRICE (right) ================= */
+  .price{
+    position:absolute; z-index:15; right:56px; top:1086px;
+    text-align:right;
+  }
+  .price-now{ font-weight:700; font-size:90px; line-height:.9; }
+  .price-was{ margin-top:14px; color:var(--ink-faint); font-size:32px; font-weight:500; text-decoration:line-through; }
+
+  /* ================= ARROWS (right) ================= */
+  .arrows{
+    position:absolute; z-index:15; right:56px; top:1256px;
+    display:flex; gap:28px;
+  }
+  .arrowbtn{
+    width:108px; height:108px; border-radius:50%; cursor:pointer;
+    display:grid; place-items:center; color:#fff;
+    background:transparent; border:2px solid rgba(255,255,255,.42);
+    padding:0; outline:none; transition:.18s;
+  }
+  .arrowbtn:active:not(:disabled){ background:rgba(255,255,255,.16); transform:scale(.95); }
+  .arrowbtn:disabled{ opacity:.32; cursor:default; }
+  .arrowbtn svg{ width:40px; height:40px; }
+
+  /* ================= QTY (right) ================= */
+  .qty{
+    position:absolute; z-index:15; right:56px; top:1408px;
+    display:flex; align-items:center; gap:28px;
+  }
+  .qbtn{
+    width:84px; height:84px; border-radius:50%; cursor:pointer;
+    display:grid; place-items:center; color:#fff;
+    background:transparent; border:2px solid rgba(255,255,255,.42);
+    padding:0; outline:none; transition:.18s;
+  }
+  .qbtn:active{ background:rgba(255,255,255,.16); transform:scale(.95); }
+  .qbtn svg{ width:36px; height:36px; }
+  .qval{ font-size:44px; font-weight:600; min-width:44px; text-align:center; }
+
+  /* ================= SIZE (left) ================= */
+  .sizes{ position:absolute; z-index:15; left:56px; top:1388px; }
+  .sizes-label{ display:block; color:var(--ink-faint); font-size:28px; font-weight:600; }
+  .size-row{ display:flex; gap:20px; margin-top:22px; }
+  .size-chip{
+    width:80px; height:80px; border-radius:50%; cursor:pointer;
+    font-family:inherit; font-weight:700; font-size:31px;
+    color:var(--ink-soft); background:transparent;
+    border:2px solid rgba(255,255,255,.30); transition:.18s;
+  }
+  .size-chip.on{ background:#fff; color:#15151a; border-color:#fff; }
+  .size-chip:active{ transform:scale(.94); }
+
+  /* ================= BUY NOW ================= */
+  .buynow{
+    position:absolute; z-index:15; left:56px; right:56px; bottom:34px;
+    background:#fff; color:#1c1c1c; border:0; cursor:pointer;
+    font-family:inherit; font-weight:700; font-size:36px;
+    padding:30px 0; border-radius:999px;
+    transition:.2s; text-align:center;
+  }
+  .buynow:active{ transform:scale(.985); }
+  .buynow.added{ background:#1f8a4c; color:#fff; }
+
+  .fade-key{ animation:fadeUp .45s ease both; }
+  @keyframes fadeUp{ from{ opacity:0; transform:translateY(10px);} to{ opacity:1; transform:none; } }
+
+  /* loader */
+  .loader{
+    position:absolute; inset:0; z-index:40;
+    display:flex; align-items:center; justify-content:center;
+    background:#1c1404; transition:opacity .5s ease, visibility .5s;
+  }
+  .loader.gone{ opacity:0; visibility:hidden; }
+  .ring{
+    width:60px; height:60px; border-radius:50%;
+    border:4px solid rgba(255,255,255,.22); border-top-color:#fff;
+    animation:spin .9s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg);} }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script type="text/babel">
+// ===========================================================================
+//  STRYDE — Mobile storefront (matches reference 1:1)
+//  Fixed 940×1646 phone canvas, scaled to fit viewport. Gradient colorways.
+// ===========================================================================
+const { useState, useEffect, useRef, useCallback } = React;
+
+const PRODUCTS = [
+  {
+    name: 'Sand Dune',
+    sub: 'Warm sand tones, breathable build, made for the long way home.',
+    price: '54.99', was: '74.99', sizes: [38, 39, 40],
+    shoe: 'assets/shoe-orange.png', bg: 'assets/orangegrad.png', base: '#2a0901',
+    scale: 1.0,
+  },
+  {
+    name: 'Army Green',
+    sub: 'Tonal olive suede with a clean midsole, quietly bold, all day.',
+    price: '64.99', was: '84.99', sizes: [40, 41, 42],
+    shoe: 'assets/shoe-golden.png', bg: 'assets/goldenbg.png', base: '#1c1404',
+    scale: 1.0,
+  },
+  {
+    name: 'Pastel Dream',
+    sub: 'Soft pastel hues with airy cushioning for light, cloud-like steps.',
+    price: '69.99', was: '89.99', sizes: [37, 38, 39],
+    shoe: 'assets/shoe-pastel.png', bg: 'assets/pastelbg.png', base: '#2e1e3f',
+    scale: 1.02,
+  },
+];
+const N = PRODUCTS.length;
+const mod = (n) => ((n % N) + N) % N;
+
+const NAV = ['Products', 'About', 'Category', 'Contact'];
+
+const Icon = {
+  user: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <circle cx="12" cy="8" r="3.4" /><path d="M5.5 19a6.5 6.5 0 0 1 13 0" />
+    </svg>
+  ),
+  left: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M19 12H5M11 18l-6-6 6-6" />
+    </svg>
+  ),
+  right: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </svg>
+  ),
+  minus: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...p}><path d="M5 12h14" /></svg>
+  ),
+  plus: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...p}><path d="M12 5v14M5 12h14" /></svg>
+  ),
+  bag: (p) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
+      <path d="M6 8h12l-1 11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1L6 8z" />
+      <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+    </svg>
+  ),
+};
+
+function App() {
+  // Single source of truth for swap timing — animation, lock, and bg-fade
+  // all derive from this one number so they can never drift apart.
+  const SWAP_MS = 500;
+
+  const [active, setActive] = useState(1);   // golden = default (matches reference)
+  const [dir, setDir] = useState(1);
+  const [token, setToken] = useState(0);     // bumps each swap → remounts slidewrap → replays entrance
+  const [tab, setTab] = useState('Products');
+  const [size, setSize] = useState(PRODUCTS[1].sizes[0]);
+  const [qty, setQty] = useState(1);
+  const [adding, setAdding] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [loaderMounted, setLoaderMounted] = useState(true);  // unmounts after fade — never depends on opacity recompute
+  const deviceRef = useRef(null);
+  const busyRef = useRef(false);             // the ONE guard every navigation path respects
+
+  // ---- scale fixed canvas to fit the viewport ----
+  // Resilient to 0/invalid viewport dims (iframe not laid out yet): never writes
+  // scale(0). Uses the documentElement's real size, clamps to a sane fallback,
+  // and a ResizeObserver fires once layout has true dimensions — so the canvas
+  // can never render invisible on first paint.
+  useEffect(() => {
+    const fit = () => {
+      const w = window.innerWidth || document.documentElement.clientWidth || 0;
+      const h = window.innerHeight || document.documentElement.clientHeight || 0;
+      if (!w || !h) return;                       // bail until we have real dimensions
+      const s = Math.min(w / 941, h / 1672) || 0.45;
+      if (deviceRef.current) deviceRef.current.style.transform = `translate(-50%,-50%) scale(${s})`;
+    };
+    fit();
+    requestAnimationFrame(fit);                   // retry after first layout pass
+    const ro = new ResizeObserver(fit);
+    ro.observe(document.documentElement);
+    window.addEventListener('resize', fit);
+    window.addEventListener('orientationchange', fit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', fit);
+      window.removeEventListener('orientationchange', fit);
+    };
+  }, []);
+
+  // ---- preload imagery ----
+  useEffect(() => {
+    let done = 0;
+    const srcs = [...new Set(PRODUCTS.flatMap(p => [p.shoe, p.bg]))];
+    srcs.forEach((src) => {
+      const im = new Image();
+      im.onload = im.onerror = () => { if (++done >= srcs.length) setLoaded(true); };
+      im.src = src;
+    });
+    const t = setTimeout(() => setLoaded(true), 1200);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Once loaded, let the fade play then REMOVE the loader from the DOM entirely.
+  // This guarantees it disappears regardless of whether the opacity transition
+  // recomputes — there's nothing left to be stuck visible.
+  useEffect(() => {
+    if (!loaded) return;
+    const t = setTimeout(() => setLoaderMounted(false), 520);
+    return () => clearTimeout(t);
+  }, [loaded]);
+
+  const product = PRODUCTS[active];
+  const prev = mod(active - 1);
+  const next = mod(active + 1);
+
+  // The ONE navigation entry point. Every caller — arrows, thumbnails, swipe,
+  // wheel, keys — goes through here, so throttling is consistent and impossible
+  // to bypass. The guard is released after exactly one swap cycle.
+  const go = useCallback((d) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setDir(d);
+    setToken((t) => t + 1);     // remount slidewrap → entrance replays from the new direction
+    setActive((a) => {
+      const n = mod(a + d);
+      setSize(PRODUCTS[n].sizes[0]);
+      return n;
+    });
+    setTimeout(() => { busyRef.current = false; }, SWAP_MS);
+  }, []);
+
+  // swipe / wheel / keys — all just call go(); the guard lives inside go()
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') go(1);
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') go(-1);
+    };
+    let sx = 0, sy = 0, tracking = false;
+    const ts = (e) => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; tracking = true; };
+    const te = (e) => {
+      if (!tracking) return; tracking = false;
+      const t = e.changedTouches[0]; const dx = t.clientX - sx, dy = t.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 40) return;
+      const d = Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? 1 : -1) : (dy < 0 ? 1 : -1);
+      go(d);
+    };
+    let accum = 0, rt = null;
+    const onWheel = (e) => {
+      accum += Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      clearTimeout(rt); rt = setTimeout(() => accum = 0, 150);
+      if (Math.abs(accum) > 30) { const d = accum > 0 ? 1 : -1; accum = 0; go(d); }
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('touchstart', ts, { passive: true });
+    window.addEventListener('touchend', te);
+    window.addEventListener('wheel', onWheel, { passive: true });
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('touchstart', ts);
+      window.removeEventListener('touchend', te);
+      window.removeEventListener('wheel', onWheel);
+    };
+  }, [go]);
+
+  const buyNow = () => { setAdding(true); setTimeout(() => setAdding(false), 950); };
+
+  return (
+    <div className="viewport">
+      <div className="device" ref={deviceRef} style={{ background: product.base }}>
+
+        {/* background cross-fade layers */}
+        {PRODUCTS.map((p, i) => (
+          <div key={p.name} className="bg"
+               style={{ backgroundImage: `url("${p.bg}")`, opacity: i === active ? 1 : 0,
+                        transitionDuration: SWAP_MS + 'ms' }} />
+        ))}
+
+        {/* watermark swoosh */}
+        <img className="watermark" src="assets/nikelogo.png" alt="" aria-hidden="true" />
+
+        {/* shoes — prev thumb (left), next thumb (right), active main */}
+        <img className="shoe thumb left thumb-fade" key={'l' + PRODUCTS[prev].name} src={PRODUCTS[prev].shoe} alt={PRODUCTS[prev].name}
+             onClick={() => go(-1)}
+             style={{ transform: `translate(-50%,-50%) rotate(-6deg) scale(${PRODUCTS[prev].scale})` }} />
+        <img className="shoe thumb right thumb-fade" key={'r' + PRODUCTS[next].name} src={PRODUCTS[next].shoe} alt={PRODUCTS[next].name}
+             onClick={() => go(1)}
+             style={{ transform: `translate(-50%,-50%) rotate(-6deg) scale(${PRODUCTS[next].scale})` }} />
+        <div className="mainstage">
+          <div className="floatwrap">
+            <div className={`slidewrap ${token === 0 ? '' : (dir > 0 ? 'from-right' : 'from-left')}`} key={token}>
+              <img className="shoe main" src={product.shoe} alt={product.name} />
+            </div>
+          </div>
+        </div>
+
+        <div className="scrim" />
+
+        {/* TOP BAR */}
+        <header className="topbar">
+          <div className="logo"><img src="assets/nikelogo.png" alt="Nike" /></div>
+          <div className="actions">
+            <button className="iconbtn"><Icon.user /></button>
+            <button className="iconbtn cart"><Icon.bag /></button>
+          </div>
+        </header>
+
+        {/* NAV */}
+        <nav className="navwrap">
+          {NAV.map((n) => (
+            <button key={n} className={`pill ${tab === n ? 'active' : ''}`} onClick={() => setTab(n)}>{n}</button>
+          ))}
+        </nav>
+
+        {/* HERO */}
+        <div className="hero">
+          <h1 className="headline">Built For<br/>All Day<br/>Comfort</h1>
+          <p key={product.name + 's'} className="subcopy fade-key">{product.sub}</p>
+        </div>
+
+        {/* PRICE */}
+        <div className="price" key={product.name + 'p'}>
+          <div className="price-now fade-key">${product.price}</div>
+          <div className="price-was fade-key">${product.was}</div>
+        </div>
+
+        {/* ARROWS */}
+        <div className="arrows">
+          <button className="arrowbtn" onClick={() => go(-1)}><Icon.left /></button>
+          <button className="arrowbtn" onClick={() => go(1)}><Icon.right /></button>
+        </div>
+
+        {/* QTY */}
+        <div className="qty">
+          <button className="qbtn" onClick={() => setQty(q => Math.max(1, q - 1))}><Icon.minus /></button>
+          <span className="qval">{qty}</span>
+          <button className="qbtn" onClick={() => setQty(q => q + 1)}><Icon.plus /></button>
+        </div>
+
+        {/* SIZE */}
+        <div className="sizes">
+          <span className="sizes-label">Size</span>
+          <div className="size-row">
+            {product.sizes.map((s) => (
+              <button key={s} className={`size-chip ${size === s ? 'on' : ''}`} onClick={() => setSize(s)}>{s}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* BUY NOW */}
+        <button className={`buynow ${adding ? 'added' : ''}`} onClick={buyNow}>
+          {adding ? 'Added ✓' : 'Buy Now'}
+        </button>
+
+        {/* loader — unmounts entirely after fade */}
+        {loaderMounted && <div className={`loader ${loaded ? 'gone' : ''}`}><div className="ring" /></div>}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

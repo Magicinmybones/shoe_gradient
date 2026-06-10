@@ -3,6 +3,32 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- ===== Mobile dispatch =====================================================
+     On phones/tablets, serve the self-contained mobile experience (mobile.html)
+     at this SAME url with no redirect. Runs as the first thing in <head>, so on
+     mobile the document is replaced BEFORE the desktop styles/scripts below ever
+     parse — the desktop code path is never touched. On desktop this is a no-op.
+     Append ?desktop=1 to force the desktop layout (useful for testing). -->
+<script>
+(function () {
+  try {
+    var forceDesktop = /[?&]desktop=1\b/.test(location.search);
+    var isMobile = !forceDesktop && (
+      window.matchMedia('(max-width: 820px)').matches ||
+      /Mobi|Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent)
+    );
+    if (!isMobile) return;                    // desktop → fall through to the PC app, untouched
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', 'mobile.html', false);    // synchronous: completes before the rest of <head> parses
+    xhr.send();
+    if (xhr.status >= 200 && xhr.status < 400 && xhr.responseText) {
+      document.open();
+      document.write(xhr.responseText);
+      document.close();
+    }
+  } catch (e) { /* any failure → fall through to the desktop app */ }
+})();
+</script>
 <title>STRYDE — Step Into Style &amp; Comfort</title>
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
