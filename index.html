@@ -3,334 +3,609 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<!-- ===== Mobile dispatch =====================================================
-     On phones/tablets, serve the self-contained mobile experience (mobile.html)
-     at this SAME url with no redirect. Runs as the first thing in <head>, so on
-     mobile the document is replaced BEFORE the desktop styles/scripts below ever
-     parse — the desktop code path is never touched. On desktop this is a no-op.
-     Append ?desktop=1 to force the desktop layout (useful for testing). -->
-<script>
-(function () {
-  try {
-    var forceDesktop = /[?&]desktop=1\b/.test(location.search);
-    var isMobile = !forceDesktop && (
-      window.matchMedia('(max-width: 820px)').matches ||
-      /Mobi|Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent)
-    );
-    if (!isMobile) return;                    // desktop → fall through to the PC app, untouched
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', 'mobile.html', false);    // synchronous: completes before the rest of <head> parses
-    xhr.send();
-    if (xhr.status >= 200 && xhr.status < 400 && xhr.responseText) {
-      document.open();
-      document.write(xhr.responseText);
-      document.close();
-    }
-  } catch (e) { /* any failure → fall through to the desktop app */ }
-})();
-</script>
-<title>STRYDE — Step Into Style &amp; Comfort</title>
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+<title>STRYDE — Step Into Style</title>
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet" />
 <style>
-  :root{
-    --stage:#050506;
-    --panel-base:#0c0d10;
-    --ink:#ffffff;
-    --ink-soft:rgba(255,255,255,.74);
-    --ink-faint:rgba(255,255,255,.46);
-    --page-margin: clamp(16px, 4vw, 48px);
-  }
-  *{ box-sizing:border-box; margin:0; padding:0; }
-  html,body{
-    height:100%; width:100%;
-    overflow:hidden;
-  }
-  body{
-    font-family:'Helvetica Neue', Helvetica, Arial, sans-serif;
-    background:var(--stage);
-    color:var(--ink);
-    -webkit-font-smoothing:antialiased;
-  }
-  #root{ height:100%; width:100%; }
-
-  /* ===== Full-viewport stage — no fixed canvas, no shrinking ===== */
-  .stage{
-    position:fixed; inset:0;
-    background:var(--stage);
-    overflow:hidden;
-    transition: background-color .6s ease;
+  @font-face {
+    font-family: 'HelveticaNeue';
+    src: url('assets/HelveticaNeueLight.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
   }
 
-  /* ---------------- 2D image stage ---------------- */
-  .canvas-mount{ position:absolute; inset:0; z-index:1; }
-  .s2-bg{
-    position:absolute; inset:-8%;
-    background-size:cover; background-position:center;
-    will-change:opacity;
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; width: 100%;
+    overflow: hidden;
+    font-family: 'HelveticaNeue', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
-  /* per-product layer — full-stage box so the shoe wrap's % width resolves
-     against the stage; the diagonal-slot transform (offset + scale + rotate)
-     is applied here by stage2d. */
-  .s2-layer{
-    position:absolute; inset:0;
-    transform-origin:center center;
-    pointer-events:none;
-    backface-visibility:hidden;
+
+  #root { height: 100%; width: 100%; }
+
+  /* ── stage ── */
+  .stage {
+    position: fixed; inset: 0;
+    overflow: hidden;
+    transition: background-color .7s ease;
   }
-  .s2-shoewrap{
-    position:absolute; left:50%; top:47%;
-    transform:translate(-50%,-50%);
+
+  /* ── canvas mount for stage2d ── */
+  .canvas-mount {
+    position: absolute; inset: 0; z-index: 1;
+  }
+
+  /* ── 2D stage background layers ── */
+  .s2-bg {
+    position: absolute; inset: -8%;
+    background-size: cover; background-position: center;
+    will-change: opacity;
+  }
+
+  /* ── shoe layer ── */
+  .s2-layer {
+    position: absolute; inset: 0;
+    transform-origin: center center;
+    pointer-events: none;
+    backface-visibility: hidden;
+  }
+
+  .s2-shoewrap {
+    position: absolute; left: 50%; top: 47%;
+    transform: translate(-50%, -50%);
     animation: s2float 6.5s ease-in-out infinite;
-    will-change:transform;
+    will-change: transform;
   }
-  @keyframes s2float{
-    0%,100%{ transform:translate(-50%, calc(-50% - 7px)); }
-    50%    { transform:translate(-50%, calc(-50% + 9px)); }
-  }
-  .s2-tilt{
-    perspective:1700px;
-    transform-style:preserve-3d;
-    transition:transform .5s cubic-bezier(.2,.8,.3,1);
-  }
-  .s2-fit{ transform-origin:center center; }
-  .s2-shoe{
-    display:block; width:100%; height:auto;
-    transform-origin:center 58%;
-    -webkit-user-drag:none; user-select:none; pointer-events:none;
-    will-change:transform, opacity;
-  }
-  .s2-shadow{ display:none; }
-
-  /* legibility scrim over the artwork */
-  .scrim{
-    position:absolute; inset:0; z-index:5; pointer-events:none;
-    background:
-      linear-gradient(102deg, rgba(0,0,0,.6) 0%, rgba(0,0,0,.26) 30%, rgba(0,0,0,0) 56%),
-      linear-gradient(0deg, rgba(0,0,0,.52) 0%, rgba(0,0,0,0) 30%),
-      radial-gradient(125% 135% at 50% 44%, transparent 58%, rgba(0,0,0,.42) 100%);
+  @keyframes s2float {
+    0%, 100% { transform: translate(-50%, calc(-50% - 7px)); }
+    50%       { transform: translate(-50%, calc(-50% + 9px)); }
   }
 
-  /* ---------------- loader ---------------- */
-  .loader{
-    position:absolute; inset:0; z-index:40;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:18px; background:var(--panel-base);
-    transition:opacity .6s ease, visibility .6s;
+  .s2-tilt {
+    perspective: 1700px;
+    transform-style: preserve-3d;
+    transition: transform .5s cubic-bezier(.2,.8,.3,1);
   }
-  .loader.gone{ opacity:0; visibility:hidden; }
-  .loader-ring{
-    width:46px; height:46px; border-radius:50%;
-    border:3px solid rgba(255,255,255,.25);
-    border-top-color:#fff; animation:spin 0.9s linear infinite;
-  }
-  .loader-text{ color:var(--ink-soft); font-size:14px; letter-spacing:.02em; }
-  @keyframes spin{ to{ transform:rotate(360deg); } }
-
-  /* ---------------- top bar ---------------- */
-  .topbar{
-    position:absolute; z-index:20; top:0; left:0; right:0;
-    height:auto;
-    display:flex; align-items:center; justify-content:space-between;
-    padding:clamp(12px, 2.5vw, 24px) var(--page-margin);
-  }
-  .logo{ display:flex; align-items:center; gap:10px; }
-  .logo-mark{ width:34px; height:30px; color:#fff; display:block; flex:none; }
-  .logo-mark svg{ width:100%; height:100%; }
-  .logo-word{ font-weight:800; font-size:clamp(14px, 1.6vw, 20px); letter-spacing:.16em; }
-
-  .navpills{
-    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-    display:flex; align-items:center; gap:2px;
-    background:rgba(0,0,0,.15);
-    padding:5px; border-radius:999px;
-  }
-  .pill{
-    border:0; background:transparent; cursor:pointer;
-    color:var(--ink-soft); font-family:inherit; font-weight:600;
-    font-size:clamp(11px, 1.1vw, 14px); padding:9px clamp(10px, 1.4vw, 18px); border-radius:999px;
-    transition:.25s; white-space:nowrap;
-  }
-  .pill:hover{ color:#fff; }
-  .pill.active{ background:#fff; color:#15151a; }
-
-  .actions{ display:flex; align-items:center; gap:12px; }
-  .iconbtn{
-    position:relative; width:42px; height:42px; border-radius:50%;
-    display:grid; place-items:center; cursor:pointer; color:#fff;
-    background:rgba(0,0,0,.28); border:1px solid rgba(255,255,255,.10);
-    padding:0; outline:none;
-    transition:.2s;
-  }
-  .iconbtn:hover{ background:rgba(0,0,0,.42); transform:translateY(-1px); }
-  .iconbtn.cart{ background:#fff; border-color:transparent; }
-  .badge{
-    position:absolute; top:-4px; right:-4px;
-    min-width:19px; height:19px; padding:0 5px; border-radius:999px;
-    background:#fff; color:#15151a; font-size:11px; font-weight:800;
-    display:grid; place-items:center; box-shadow:0 2px 6px rgba(0,0,0,.3);
+  .s2-fit { transform-origin: center center; }
+  .s2-shoe {
+    display: block; width: 100%; height: auto;
+    transform-origin: center 58%;
+    -webkit-user-drag: none; user-select: none; pointer-events: none;
+    will-change: transform, opacity;
   }
 
-  /* ---------------- hero copy (left) ---------------- */
-  .hero{
-    position:absolute; z-index:15;
-    left:var(--page-margin);
-    top:50%;
-    transform:translateY(-40%);
-    width:clamp(220px, 28vw, 360px);
+  /* ── hide-shoe mode ── */
+  .hide-shoe .s2-layer { visibility: hidden; }
+
+  /* ── drop shadow (inside wrap — hidden, ground-shadow used instead) ── */
+  .s2-shadow { display: none; }
+
+  /* ── Nike swoosh watermarks (3 stacked) ── */
+  .watermarks-group {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    user-select: none;
   }
-  .headline{
-    font-weight:300; line-height:1.0; letter-spacing:-.01em;
-    font-size:clamp(24px, 3vw, 42px);
-    color:#fff;
+  .watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    aspect-ratio: 1 / 1;
+    background: rgba(0,0,0,0.12);
+    -webkit-mask-image: url('assets/nikelogo.png');
+    mask-image: url('assets/nikelogo.png');
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    pointer-events: none;
+    user-select: none;
   }
-  .subcopy{
-    margin-top:clamp(12px, 1.6vh, 20px); color:var(--ink-soft);
-    font-size:clamp(12px, 1.1vw, 14px); font-weight:500; line-height:1.5;
-    max-width:225px; text-wrap:pretty;
-  }
-  .shopnow{
-    margin-top:clamp(14px, 2vh, 24px); display:inline-flex; align-items:center; gap:14px;
-    background:#fff; color:#1c1c1c; border:0; cursor:pointer;
-    font-family:inherit; font-weight:700; font-size:clamp(12px, 1.2vw, 15px);
-    padding:8px 8px 8px 26px; border-radius:999px;
-    box-shadow:0 14px 30px -10px rgba(0,0,0,.5);
-    transition:.22s;
-  }
-  .shopnow:hover{ transform:translateY(-2px); box-shadow:0 20px 36px -12px rgba(0,0,0,.55); }
-  .shop-arrow{
-    width:36px; height:36px; border-radius:50%;
-    background:#15151a; color:#fff; display:grid; place-items:center;
-    flex:none;
+  .watermark-1 { background: rgba(0,0,0,0.09); }
+  .watermark-2 { background: rgba(0,0,0,0.14); }
+  .watermark-3 { background: rgba(0,0,0,0.19); }
+
+  /* ── Ground shadow (fixed, not inside floating wrap) ── */
+  .ground-shadow {
+    display: none; /* ← shadow OFF. Delete/comment THIS LINE to turn the shadow back ON. */
+    position: absolute;
+    z-index: 4;
+    top: 64%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 46%;
+    height: 46px;
+    background: rgba(0,0,0,0.78);
+    border-radius: 50%;
+    filter: blur(32px);
+    pointer-events: none;
   }
 
-  /* ---------------- right price ---------------- */
-  .price{
-    text-align:right;
-    display:flex;
-    flex-direction:column;
-    align-items:flex-end;
+  /* ── loader ── */
+  .loader {
+    position: absolute; inset: 0; z-index: 40;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px;
+    background: #ce4109;
+    transition: opacity .6s ease, visibility .6s;
   }
-  .price-now{ font-weight:300; font-size:clamp(28px, 3.6vw, 48px); line-height:1;}
-  .price-was{ margin-top:7px; color:var(--ink-faint); font-size:clamp(14px, 1.4vw, 18px); font-weight:300; text-decoration:line-through; }
-
-  /* ---------------- dots ---------------- */
-  .dots{
-    position:absolute; z-index:16; left:50%;
-    bottom:clamp(115px, 16vh, 150px);
-    transform:translateX(-50%);
-    display:flex; gap:9px;
-    background:rgba(0,0,0,.22); padding:8px 12px; border-radius:999px;
+  .loader.gone { opacity: 0; visibility: hidden; }
+  .loader-ring {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,.25);
+    border-top-color: #fff;
+    animation: spin .9s linear infinite;
   }
-  .dot{
-    width:8px; height:8px; border-radius:50%; border:0; cursor:pointer;
-    background:rgba(255,255,255,.4); transition:.25s;
-  }
-  .dot.on{ width:22px; border-radius:999px; background:#fff; }
+  .loader-text { color: rgba(255,255,255,.7); font-size: 13px; letter-spacing: .06em; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ---------------- bottom bar (sizes + features + cart row) ---------------- */
-  .bottom-bar{
-    position:absolute; z-index:15;
-    bottom:0; left:0; right:0;
-    height:auto;
-    display:flex; align-items:flex-end;
-    justify-content:space-between;
-    padding:clamp(12px, 2.5vw, 24px) var(--page-margin);
-    gap:clamp(12px, 2vw, 32px);
-    pointer-events:none;
-  }
-  .bottom-bar > *{ pointer-events:auto; }
-
-  /* sizes — bottom left */
-  .sizes{ flex:none; display:flex; flex-direction:column; gap:10px; }
-  .sizes-label{ display:block; color:rgba(255,255,255,.55); font-size:13px; font-weight:600; }
-  .size-row{ display:flex; gap:8px; }
-  .size-chip{
-    width:40px; height:40px; border-radius:50%; cursor:pointer;
-    font-family:inherit; font-weight:700; font-size:14px;
-    color:rgba(255,255,255,.7); background:transparent;
-    border:1px solid rgba(255,255,255,.28); transition:.2s;
-  }
-  .size-chip:hover{ border-color:#fff; color:#fff; }
-  .size-chip.on{ background:#fff; color:#15151a; border-color:#fff; }
-
-  /* right actions */
-  .right-actions{ flex:none; display:flex; flex-direction:column; align-items:stretch; gap:14px; width:120px; }
-
-  .arrows{ display:flex; gap:12px; width:100%; justify-content:space-between; }
-  .arrowbtn{
-    width:54px; height:54px; border-radius:50%; cursor:pointer;
-    display:grid; place-items:center; color:#fff;
-    background:transparent; border:1.5px solid rgba(255,255,255,.45);
-    padding:0; outline:none; transition:.2s;
-  }
-  .arrowbtn:hover:not(:disabled){ background:rgba(255,255,255,.15); }
-  .arrowbtn:disabled{ opacity:.35; cursor:default; }
-
-  .stat-row{
-    display:flex; align-items:center; gap:12px;
-    color:#fff; font-size:clamp(13px, 1.3vw, 16px); font-weight:600;
-  }
-  .stat{ display:flex; align-items:center; gap:6px; }
-  .stat-sep{ opacity:.4; font-weight:300; font-size:18px; }
-
-  .qty-row{ display:flex; align-items:center; width:100%; justify-content:space-between; }
-  .qty-row .arrowbtn{ width:38px; height:38px; flex:none; border-radius:14px; }
-  .qty-val{ font-size:clamp(16px, 1.6vw, 20px); font-weight:600; color:#fff; min-width:24px; text-align:center; }
-
-  .buynow{
-    background:#fff; color:#1c1c1c; border:0; cursor:pointer;
-    font-family:inherit; font-weight:700; font-size:clamp(13px, 1.3vw, 16px);
-    padding:14px 0; border-radius:999px;
-    transition:.22s; white-space:nowrap;
-    width:100%;
-  }
-  .buynow:hover{ transform:translateY(-2px); }
-  .buynow.added{ background:#1f8a4c; color:#fff; }
-  /* tweaks opener — fixed bottom-left, 2% opacity, fully out of layout flow */
-  .gearbtn{ display:none; }
-
-  /* drag hint */
-  .drag-hint{
-    position:absolute; z-index:15; left:50%; top:clamp(72px, 9.5vh, 120px);
-    transform:translateX(-50%);
-    color:var(--ink-faint); font-size:12px; letter-spacing:.04em;
-    pointer-events:none; animation:hintfade 4s ease forwards 3.5s;
-    white-space:nowrap;
-  }
-  @keyframes hintfade{ to{ opacity:0; } }
-
-  .fade-key{ animation:fadeUp .5s ease both; }
-  @keyframes fadeUp{ from{ opacity:0; transform:translateY(8px);} to{ opacity:1; transform:none; } }
-
-  /* ===== Compact layout for narrow / short viewports ===== */
-  @media (max-width: 640px) {
-    .navpills { display:none; }
-    .features { display:none; }
-    .hero { width:clamp(180px, 52vw, 260px); }
-    .sizes-label { display:none; }
-    .bottom-bar { justify-content:space-between; }
-    .right-actions { gap:8px; }
+  /* ── top bar ── */
+  .topbar {
+    position: absolute; z-index: 20; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: clamp(14px,2.5vw,26px) clamp(20px,4vw,52px);
   }
 
-  @media (max-height: 500px) {
-    .features { display:none; }
-    .dots { bottom:clamp(72px, 13vh, 100px); }
+  .logo img {
+    height: 56px;
+    filter: brightness(0) invert(1);
+    display: block;
   }
-  .twk-fab { display:none !important; }
+
+  .navpills {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    display: flex; align-items: center; gap: 2px;
+    background: rgba(0,0,0,.18);
+    padding: 5px; border-radius: 999px;
+    backdrop-filter: blur(6px);
+  }
+  .pill {
+    border: 0; background: transparent; cursor: pointer;
+    color: rgba(255,255,255,.8); font-family: inherit; font-weight: 600;
+    font-size: clamp(11px,1.1vw,13px); padding: 8px clamp(12px,1.5vw,20px); border-radius: 999px;
+    transition: .2s; white-space: nowrap;
+    letter-spacing: .02em;
+  }
+  .pill:hover { color: #fff; }
+  .pill.active { background: rgba(255,255,255,.95); color: #1c1c1c; }
+
+  .actions { display: flex; align-items: center; gap: 10px; }
+  .iconbtn {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center; cursor: pointer; color: #fff;
+    background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.12);
+    padding: 0; outline: none; transition: .2s; position: relative;
+  }
+  .iconbtn:hover { background: rgba(0,0,0,.36); }
+  .iconbtn.cart { background: rgba(255,255,255,.95); color: #1c1c1c; border-color: transparent; }
+  .badge {
+    position: absolute; top: -4px; right: -4px;
+    min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px;
+    background: #1c1c1c; color: #fff; font-size: 10px; font-weight: 800;
+    display: grid; place-items: center;
+  }
+
+  /* ── hero copy ── */
+  .hero {
+    position: absolute; z-index: 15;
+    left: clamp(20px,4vw,52px);
+    top: 50%; transform: translateY(-44%);
+    width: clamp(200px,26vw,340px);
+    display: flex; flex-direction: column;
+    gap: clamp(14px,2.2vh,26px);
+  }
+  .shoe-label {
+    color: rgba(255,255,255,.7);
+    font-size: clamp(11px,1vw,13px);
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .headline {
+    font-weight: 300; line-height: 1.01; letter-spacing: -.01em;
+    font-size: clamp(26px,3.1vw,46px);
+    color: #fff;
+  }
+  .review-block {
+    display: flex; flex-direction: column;
+  }
+  .review-text {
+    color: rgba(255,255,255,.6);
+    font-size: clamp(10px,.9vw,12px);
+    line-height: 1.55;
+    max-width: 210px;
+    text-wrap: pretty;
+  }
+
+  /* ── dots ── */
+  .dots {
+    position: absolute; z-index: 16; left: 50%; bottom: clamp(100px,14vh,140px);
+    transform: translateX(-50%);
+    display: flex; gap: 8px;
+    background: rgba(0,0,0,.18); padding: 7px 12px; border-radius: 999px;
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%; border: 0; cursor: pointer;
+    background: rgba(255,255,255,.4); transition: .25s; padding: 0;
+  }
+  .dot.on { width: 20px; border-radius: 999px; background: #fff; }
+
+  /* ── bottom bar ── */
+  .bottom-bar {
+    position: absolute; z-index: 15;
+    bottom: 0; left: 0; right: 0;
+    display: flex; align-items: flex-end; justify-content: space-between;
+    padding: clamp(14px,2.5vw,26px) clamp(20px,4vw,52px);
+    gap: clamp(10px,2vw,28px);
+    pointer-events: none;
+  }
+  .bottom-bar > * { pointer-events: auto; }
+
+  .sizes { flex: none; display: flex; flex-direction: column; gap: 10px; }
+  .sizes-label { color: rgba(255,255,255,.55); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .size-row { display: flex; gap: 7px; }
+  .size-chip {
+    width: 40px; height: 40px; border-radius: 50%; cursor: pointer;
+    font-family: inherit; font-weight: 700; font-size: 13px;
+    color: rgba(255,255,255,.75); background: transparent;
+    border: 1.5px solid rgba(255,255,255,.3); transition: .2s;
+  }
+  .size-chip:hover { border-color: #fff; color: #fff; }
+  .size-chip.on { background: #fff; color: #1c1c1c; border-color: #fff; }
+
+  /* ── right cluster ── */
+  .right-cluster { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 12px; width: 130px; }
+
+  .price-block { text-align: right; }
+  .price-now { font-weight: 300; font-size: clamp(28px,3.4vw,46px); color: #fff; line-height: 1; }
+
+  /* center price pinned to bottom, same bottom padding as Buy Now */
+  .price-center {
+    position: absolute; z-index: 16;
+    left: 0; right: 0;
+    bottom: clamp(14px,2.5vw,26px);
+    pointer-events: none;
+    font-weight: 300; font-size: clamp(32px,3.8vw,52px);
+    color: #fff; line-height: 1; text-align: center;
+  }
+
+  .arrows { display: flex; gap: 10px; width: 100%; justify-content: space-between; }
+  .arrowbtn {
+    width: 52px; height: 52px; border-radius: 50%; cursor: pointer;
+    display: grid; place-items: center; color: #fff;
+    background: transparent; border: 1.5px solid rgba(255,255,255,.4);
+    padding: 0; outline: none; transition: .2s;
+  }
+  .arrowbtn:hover:not(:disabled) { background: rgba(255,255,255,.15); }
+  .arrowbtn:disabled { opacity: .32; cursor: default; }
+
+  .qty-row { display: flex; align-items: center; width: 100%; justify-content: space-between; }
+  .qty-row .arrowbtn { width: 36px; height: 36px; border-radius: 12px; flex: none; }
+  .qty-val { font-size: clamp(15px,1.5vw,18px); font-weight: 600; color: #fff; min-width: 22px; text-align: center; }
+
+  .buynow {
+    background: rgba(255,255,255,.97); color: #1c1c1c; border: 0; cursor: pointer;
+    font-family: inherit; font-weight: 700; font-size: clamp(13px,1.2vw,15px);
+    padding: 14px 0; border-radius: 999px;
+    transition: .22s; white-space: nowrap; width: 100%;
+    letter-spacing: .02em;
+  }
+  .buynow:hover { transform: translateY(-2px); box-shadow: 0 12px 28px -8px rgba(0,0,0,.4); }
+  .buynow.added { background: #1f8a4c; color: #fff; }
+
+  .fade-key { animation: fadeUp .45s ease both; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+
+  .twk-fab { display: none !important; }
 </style>
 </head>
 <body>
-  <div id="root"></div>
+<div id="root"></div>
 
-  <!-- 2D image stage controller -->
-  <script src="stage2d gradient.js"></script>
+<script src="stage2d.js"></script>
 
-  <!-- React + Babel -->
-  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
-  <script type="text/babel" src="tweaks-panel.jsx"></script>
-  <script type="text/babel" src="app.jsx"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── Products ──────────────────────────────────────────────────────────────
+const PRODUCTS = [
+  {
+    name: 'Nike Air Max Dn SE',
+    sub: 'Bold orange energy. Built for all-day comfort on any terrain.',
+    price: '59.99', was: '79.99', sizes: [39, 40, 41, 42],
+    shoe: 'assets/shoe-orange.png',
+    base: '#a4330a',
+    gradient: 'radial-gradient(ellipse 80% 75% at 50% 52%, #ec6f33 0%, #ce4109 44%, #a4330a 100%)',
+    fit: { k: 0.94, tx: 0, ty: 0 },
+  },
+  {
+    name: 'Nike Air Max Golden',
+    sub: 'Premium golden finish meets modern midsole. Make every step shine.',
+    price: '64.99', was: '84.99', sizes: [40, 41, 42, 43],
+    shoe: 'assets/shoe-golden.png',
+    base: '#342814',
+    gradient: 'radial-gradient(ellipse 70% 72% at 50% 44%, #9c7e34 0%, #6e5722 34%, #342814 72%, #342814 100%)',
+    fit: { k: 1, tx: 0, ty: 0 },
+  },
+  {
+    name: 'Nike Air Max Pastel',
+    sub: 'Soft pastel hues meet airy cushioning for light, cloud-like steps.',
+    price: '69.99', was: '89.99', sizes: [37, 38, 39, 40],
+    shoe: 'assets/shoe-pastel.png',
+    base: '#987ea6',
+    gradient: 'radial-gradient(ellipse 70% 72% at 50% 46%, #c9b6d6 0%, #b29cc2 38%, #987ea6 72%, #987ea6 100%)',
+    fit: { k: 1, tx: 0, ty: 0 },
+  },
+];
+
+const NAV = ['Products', 'About', 'Category', 'Contact'];
+
+// ── Icons ──────────────────────────────────────────────────────────────────
+const ArrowLeft = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M19 12H5M11 18l-6-6 6-6" />
+  </svg>
+);
+const ArrowRight = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </svg>
+);
+const UserIcon = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <circle cx="12" cy="8" r="3.4" /><path d="M5.5 19a6.5 6.5 0 0 1 13 0" />
+  </svg>
+);
+const MinusIcon = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" width="16" height="16" {...p}>
+    <path d="M5 12h14"/>
+  </svg>
+);
+const PlusIcon = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" width="16" height="16" {...p}>
+    <path d="M12 5v14M5 12h14"/>
+  </svg>
+);
+
+// ── App ────────────────────────────────────────────────────────────────────
+function App() {
+  const [active, setActive]   = useState(0);
+  const [tab, setTab]         = useState('Products');
+  const [size, setSize]       = useState(PRODUCTS[0].sizes[0]);
+  const [qty, setQty]         = useState(1);
+  const [cart, setCart]       = useState(2);
+  const [loaded, setLoaded]   = useState(false);
+  const [busy, setBusy]       = useState(false);
+  const [adding, setAdding]   = useState(false);
+  const mountRef = useRef(null);
+
+  const [t, setTweak] = useTweaks({
+    shoeScale: 68, float: true, transition: 'momentum', hideShoe: false,
+  });
+
+  // Mount stage2d
+  useEffect(() => {
+    let cancelled = false;
+    const start = () => {
+      if (cancelled) return;
+      window.ShoeStage.mount(mountRef.current, PRODUCTS);
+      window.ShoeStage.setType(t.transition);
+      window.ShoeStage.setFloat(t.float);
+      window.ShoeStage.setScale(t.shoeScale);
+      window.ShoeStage.whenReady.then(() => !cancelled && setLoaded(true));
+    };
+    if (window.ShoeStage) start();
+    else window.addEventListener('shoestage-ready-api', start, { once: true });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => { if (loaded) window.ShoeStage.setType(t.transition); }, [loaded, t.transition]);
+  useEffect(() => { if (loaded) window.ShoeStage.setFloat(t.float); }, [loaded, t.float]);
+  useEffect(() => { if (loaded) window.ShoeStage.setScale(t.shoeScale); }, [loaded, t.shoeScale]);
+
+  const product = PRODUCTS[active];
+
+  const swapTo = useCallback((n, dir) => {
+    if (busy || !loaded || n === active) return;
+    setBusy(true);
+    window.ShoeStage.transition(n, dir, {
+      onSwap: (idx) => {
+        setActive(idx);
+        setSize(PRODUCTS[idx].sizes[0]);
+      },
+    }).then(() => setBusy(false));
+  }, [active, busy, loaded]);
+
+  const go = useCallback((dir) => {
+    const n = Math.max(0, Math.min(PRODUCTS.length - 1, active + dir));
+    swapTo(n, dir);
+  }, [active, swapTo]);
+
+  const goRef = useRef(go);
+  useEffect(() => { goRef.current = go; }, [go]);
+
+  // Wheel + key nav
+  useEffect(() => {
+    if (!loaded) return;
+    let lock = false;
+    let accum = 0, resetT = null;
+    const fire = (dir) => {
+      if (lock) return; lock = true;
+      goRef.current(dir);
+      setTimeout(() => { lock = false; }, 640);
+    };
+    const onWheel = (e) => {
+      e.preventDefault();
+      if (lock) { accum = 0; return; }
+      const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      accum += d;
+      clearTimeout(resetT);
+      resetT = setTimeout(() => { accum = 0; }, 160);
+      if (Math.abs(accum) > 26) { fire(accum > 0 ? 1 : -1); accum = 0; }
+    };
+    const onKey = (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); fire(1); }
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); fire(-1); }
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+      clearTimeout(resetT);
+    };
+  }, [loaded]);
+
+  const buyNow = () => {
+    setCart(c => c + 1);
+    setAdding(true);
+    setTimeout(() => setAdding(false), 900);
+  };
+
+  return (
+    <div className={`stage${t.hideShoe ? ' hide-shoe' : ''}`} style={{ backgroundColor: product.base }}>
+
+      {/* 2D canvas stage */}
+      <div className="canvas-mount" ref={mountRef}>
+        {/* 3 stacked Nike swoosh watermarks — concentric, centered */}
+        <div className="watermarks-group" aria-hidden="true">
+          <div className="watermark watermark-1" style={{
+            width: '66%',
+            top: 'calc(50% + 1.93vw)', left: 'calc(50% + 6.17vw)',
+            transform: 'translate(-50%,-50%) rotate(-8deg)'
+          }}></div>
+          <div className="watermark watermark-2" style={{
+            width: '50%',
+            top: 'calc(50% - 2.85vw)', left: 'calc(50% + 5.89vw)',
+            transform: 'translate(-50%,-50%) rotate(0deg)'
+          }}></div>
+          <div className="watermark watermark-3" style={{
+            width: '37%',
+            top: 'calc(50% - 6.54vw)', left: 'calc(50% + 6.54vw)',
+            transform: 'translate(-50%,-50%) rotate(8deg)'
+          }}></div>
+        </div>
+        {/* Ground shadow — fixed position below shoe center, locked in vw units */}
+        <div className="ground-shadow" style={{
+          top: 'calc(64% + 5.89vw)',
+          left: 'calc(50% + 4.97vw)',
+          width: '39%',
+          height: '4.05vw',
+          transform: 'translateX(-50%) rotate(-11deg)'
+        }} />
+      </div>
+
+      {/* Loader */}
+      <div className={`loader ${loaded ? 'gone' : ''}`}>
+        <div className="loader-ring" />
+        <div className="loader-text">Loading…</div>
+      </div>
+
+      {/* ── TOP BAR ── */}
+      <header className="topbar">
+        <div className="logo">
+          <img src="assets/nikelogo.png" alt="Nike" style={{height:'68px', filter:'brightness(0) invert(1)', display:'block'}} />
+        </div>
+        <nav className="navpills">
+          {NAV.map(n => (
+            <button key={n} className={`pill ${tab === n ? 'active' : ''}`} onClick={() => setTab(n)}>{n}</button>
+          ))}
+        </nav>
+        <div className="actions">
+          <button className="iconbtn"><UserIcon width="19" height="19" /></button>
+          <button className="iconbtn cart" style={{ position: 'relative' }}>
+            <span className="material-icons-outlined" style={{ fontSize: '19px' }}>shopping_bag</span>
+            {cart > 0 && <span className="badge">{cart}</span>}
+          </button>
+        </div>
+      </header>
+
+      {/* ── HERO COPY ── */}
+      <div className="hero">
+        <h1 className="headline">Wear your<br />style with<br />Comfort</h1>
+        <p className="shoe-label fade-key" key={product.name + 'lbl'}>{product.name}</p>
+        <div className="review-block">
+          <p className="review-text fade-key" key={product.name + 'rv'}>
+            The quality is excellent, packed durably, and the color is a dream. The USS store is excellent. Thank you!! We strive to earn and keep your trust.
+          </p>
+        </div>
+      </div>
+
+      {/* ── DOTS ── */}
+      {/* ── BOTTOM BAR ── */}
+      <div className="bottom-bar">
+        {/* Sizes — left */}
+        <div className="sizes">
+          <span className="sizes-label">Size</span>
+          <div className="size-row">
+            {product.sizes.slice(0,3).map(s => (
+              <button key={s} className={`size-chip ${size === s ? 'on' : ''}`} onClick={() => setSize(s)}>{s}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Right cluster */}
+        <div className="right-cluster">
+          <div className="arrows">
+            <button className="arrowbtn" disabled={busy || active === 0} onClick={() => go(-1)}>
+              <ArrowLeft width="19" height="19" />
+            </button>
+            <button className="arrowbtn" disabled={busy || active === PRODUCTS.length - 1} onClick={() => go(1)}>
+              <ArrowRight width="19" height="19" />
+            </button>
+          </div>
+          <div className="qty-row">
+            <button className="arrowbtn" onClick={() => setQty(q => Math.max(1, q - 1))}><MinusIcon /></button>
+            <span className="qty-val">{qty}</span>
+            <button className="arrowbtn" onClick={() => setQty(q => q + 1)}><PlusIcon /></button>
+          </div>
+          <button className={`buynow ${adding ? 'added' : ''}`} onClick={buyNow}>
+            {adding ? 'Added ✓' : 'Buy Now'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── CENTER PRICE ── */}
+      <div className="price-center fade-key" key={product.name + 'pc'}>${product.price}</div>
+      <TweaksPanel>
+        <TweakSection label="Motion" />
+        <TweakRadio label="Transition" value={t.transition}
+          options={[
+            { value: 'momentum', label: 'Momentum' },
+            { value: 'depth',    label: 'Depth' },
+            { value: 'orbit',    label: 'Orbit' },
+          ]}
+          onChange={v => setTweak('transition', v)} />
+        <TweakSection label="Stage" />
+        <TweakSlider label="Shoe scale" value={t.shoeScale} min={48} max={88} step={1} unit="%" onChange={v => setTweak('shoeScale', v)} />
+        <TweakToggle label="Idle float" value={t.float} onChange={v => setTweak('float', v)} />
+        <TweakToggle label="Hide shoe" value={t.hideShoe} onChange={v => setTweak('hideShoe', v)} />
+
+        <TweakButton label="Reset all" secondary onClick={() => setTweak({
+          shoeScale: 68, float: true, transition: 'momentum', hideShoe: false,
+        })} />
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
 </body>
 </html>

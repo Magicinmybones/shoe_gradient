@@ -313,7 +313,7 @@ function App() {
 
       {/* ---------- LEFT HERO COPY ---------- */}
       <div className="hero">
-        <h1 className="headline">Built For<br/>All Day<br/>Comfort</h1>
+        <h1 className="headline">Wear your<br/>Style with<br/>Comfort</h1>
         <p key={product.name + 'sub'} className="subcopy fade-key">{product.sub}</p>
       </div>
 
